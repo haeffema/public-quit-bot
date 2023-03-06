@@ -67,10 +67,12 @@ class Quiz:
         for player in self.players:
             if player.user == user:
                 player.points = points
+                await self.update_table()
                 return
         player = Player(user, user.name)
         player.points = points
         self.players.append(player)
+        await self.update_table()
 
     async def hint(self, user: discord.User):
         for player in self.players:
@@ -84,6 +86,7 @@ class Quiz:
                 for x in range(3):
                     if player.guesses == self.active_question.max_guesses * (x + 1):
                         await user.send(self.active_question.hints[x])
+                        await self.update_table()
                         return
 
     async def ff(self, user: discord.User):
@@ -96,6 +99,7 @@ class Quiz:
                 player.points += 0.5
                 await user.send(
                     f"Die heutige Lösung war: {self.active_question.answer}. Mit etwas nachdenken hättest du es bestimmt geschafft :(")
+                await self.update_table()
                 await self.all_correct_today()
                 return
 
@@ -125,7 +129,6 @@ class Quiz:
 
     async def reveal_answer(self):
         self.reset_guesses()
-        await self.send_text("Die Lösung war: " + self.active_question.answer)
         await self.log_answers()
         self.active_question = None
         self.log_list = []
@@ -165,7 +168,6 @@ class Quiz:
             if player.user == user_answer.author:
                 if player.correct_today or self.active_question is None:
                     return
-                await self.update_table()
                 if user_answer.content == self.active_question.answer:
                     player.points += self.calculate_points(player)
                     player.correct_today = True
@@ -173,14 +175,15 @@ class Quiz:
                     await user_answer.reply(f"Damit hast du nun {player.points} Punkte.")
                     await self.all_correct_today()
                 else:
-                    player.guesses += 1
                     self.log_list.append(
                         Log(player, user_answer.content, player.guesses // self.active_question.max_guesses))
+                    player.guesses += 1
                     await user_answer.add_reaction('\N{negative squared cross mark}')
                     for x in range(3):
                         if player.guesses == self.active_question.max_guesses * (x + 1):
                             await user_answer.reply(self.active_question.hints[x])
                 await quiz_master.send(f"{player.username}: {user_answer.content}")
+                await self.update_table()
                 return
 
     def calculate_points(self, player):
@@ -204,13 +207,17 @@ class Quiz:
                 if self.players[x].points == player.points:
                     player.rank = self.players[x].rank
             rank += 1
-        await self.table_channel.purge(limit=len(self.players))
+        await self.table_channel.purge(limit=len(self.players) * 2)
         for player in self.players:
-            await self.table_channel.send(
-                f"{player.rank}. {player.username} {player.points} | {player.guesses} - {player.correct_today}")
+            if player.correct_today:
+                await self.table_channel.send(f"{player.rank}. {player.username} {player.points}")
+            else:
+                await self.table_channel.send(
+                    f"{player.rank}. {player.username} {player.points} | {player.guesses} - {player.correct_today}")
 
-    def points_minus_one(self, user):
+    async def points_minus_one(self, user):
         for player in self.players:
             if player.user == user:
                 player.points -= 1
+                await self.update_table()
                 return
