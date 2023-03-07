@@ -39,16 +39,10 @@ async def on_message(ctx: discord.Message):
 async def help(interaction: discord.Interaction):
     await interaction.response.send_message("check your dms", ephemeral=True)
     if interaction.user == quiz_master:
-        await interaction.user.send("/start: start the current quiz")
-        await interaction.user.send("/start_at: start the current quiz at the given number")
-        await interaction.user.send("/remove: remove a user from the quiz")
         await interaction.user.send(
-            "/set_points: update the points for a user. if the user doesnt exist it creates the user with the given points")
-        await interaction.user.send("/send_message: sends the message in the quiz channel")
-    await interaction.user.send("/join: you join the quiz")
-    await interaction.user.send("/update_username: you can change your username so its not the generated username")
-    await interaction.user.send("/hint: you go directly to the next hint")
-    await interaction.user.send("/ff: you'll get the answer but only get half a point for the day")
+            "/start: start the current quiz\n/start_at: start the current quiz at the given number\n/remove: remove a user from the quiz\n/set_points: update the points for a user. if the user doesnt exist it creates the user with the given points\n/send_message: sends the message in the quiz channel")
+    await interaction.user.send(
+        "/join: you join the quiz\n/update_username: you can change your username so its not the generated username\n/hint: you go directly to the next hint\n/ff: you'll get the answer but only get half a point for the day")
 
 
 @bot.tree.command(name="start", description="starts the quiz normally")
@@ -75,7 +69,7 @@ async def start_at(interaction: discord.Interaction, number: int):
 @bot.tree.command(name="join", description="the user joins the quiz")
 async def join(interaction: discord.Interaction):
     await interaction.response.send_message(f"welcome to the quiz :)", ephemeral=True)
-    quiz.join(interaction.user)
+    await quiz.join(interaction.user)
     await quiz_master.send(f"{interaction.user} joined")
 
 
@@ -83,7 +77,7 @@ async def join(interaction: discord.Interaction):
 @app_commands.describe(username="the new username")
 async def update_username(interaction: discord.Interaction, username: str):
     await interaction.response.send_message(f"updated username to {username}", ephemeral=True)
-    quiz.update_username(interaction.user, username)
+    await quiz.update_username(interaction.user, username)
     await quiz_master.send(f"{interaction.user} changed name to {username}")
 
 
@@ -92,7 +86,7 @@ async def update_username(interaction: discord.Interaction, username: str):
 async def remove(interaction: discord.Interaction, player: discord.User):
     if interaction.user == quiz_master:
         await interaction.response.send_message(f"removed {player.name}", ephemeral=True)
-        quiz.remove(player)
+        await quiz.remove(player)
     else:
         await interaction.response.send_message("you are not the quiz-master", ephemeral=True)
 
@@ -118,7 +112,7 @@ async def ff(interaction: discord.Interaction):
 async def set_points(interaction: discord.Interaction, user: discord.User, new_points: int):
     if interaction.user == quiz_master:
         await interaction.response.send_message(f"set points of {user.name} to {new_points}", ephemeral=True)
-        quiz.set_points(user, new_points)
+        await quiz.set_points(user, new_points)
     else:
         await interaction.response.send_message("you are not the quiz-master", ephemeral=True)
 
