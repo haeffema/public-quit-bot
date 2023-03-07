@@ -28,8 +28,8 @@ Question2;Answer2;Hint2.1;Hint2.2;Hint2.3;MaxGuesses2
 
 ##### Special-Charackters
 
-; can not be used as a charackter in a line with a question
-| is used to generate a new line in the start/end message
+- ; can not be used as a charackter in a line with a question
+- | is used to generate a new line in the start/end message
 
 #### images
 
