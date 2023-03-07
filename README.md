@@ -13,7 +13,6 @@
 
 ##### Format
 
-- The quiz.txt has to be in the following format:
 - Start Message
 - End Message
 - Question1;Answer1;Hint1.1;Hint1.2;Hint1.3;MaxGuesses1
