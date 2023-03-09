@@ -1,3 +1,5 @@
+import datetime
+
 import discord
 from discord import app_commands
 from discord.ext import commands, tasks
@@ -7,6 +9,11 @@ from src.quiz import Quiz
 
 bot = commands.Bot(command_prefix=".", intents=discord.Intents.all())
 bot.remove_command("help")
+
+question_time = datetime.time(hour=23)
+reminder_time = datetime.time(hour=19)
+
+# 1 hour behind -> needs to be fixed with timezone
 
 global quiz_channel
 global table_channel
@@ -49,8 +56,9 @@ async def help(interaction: discord.Interaction):
 async def start(interaction: discord.Interaction):
     if interaction.user == quiz_master and not quiz.is_active:
         await interaction.response.send_message(f"started quiz", ephemeral=True)
-        question.start()
         await quiz.start()
+        send_question.start()
+        send_reminder.start()
     else:
         await interaction.response.send_message("you are not the quiz-master", ephemeral=True)
 
@@ -61,7 +69,18 @@ async def start_at(interaction: discord.Interaction, number: int):
     if interaction.user == quiz_master and not quiz.is_active:
         await interaction.response.send_message(f"started quiz at {number}", ephemeral=True)
         await quiz.start_at(number)
-        question.start()
+        send_question.start()
+        send_reminder.start()
+    else:
+        await interaction.response.send_message("you are not the quiz-master", ephemeral=True)
+
+
+@bot.tree.command(name="strike", description="the player will be striked")
+@app_commands.describe(player="the player that will be striked")
+async def strike(interaction: discord.Interaction, player: discord.User):
+    if interaction.user == quiz_master and not quiz.is_active:
+        await interaction.response.send_message(f"{player.name} has been striked", ephemeral=True)
+        await quiz.strike(player)
     else:
         await interaction.response.send_message("you are not the quiz-master", ephemeral=True)
 
@@ -109,7 +128,7 @@ async def ff(interaction: discord.Interaction):
 @bot.tree.command(name="set_points", description="changes the points of a given player to the given number")
 @app_commands.describe(user="the player which points will be changed")
 @app_commands.describe(new_points="the new points for the player")
-async def set_points(interaction: discord.Interaction, user: discord.User, new_points: int):
+async def set_points(interaction: discord.Interaction, user: discord.User, new_points: float):
     if interaction.user == quiz_master:
         await interaction.response.send_message(f"set points of {user.name} to {new_points}", ephemeral=True)
         await quiz.set_points(user, new_points)
@@ -127,10 +146,16 @@ async def send_message(interaction: discord.Interaction, message: str):
         await interaction.response.send_message("you are not the quiz-master", ephemeral=True)
 
 
-@tasks.loop(hours=24)
-async def question():
+@tasks.loop(time=question_time, reconnect=True)
+async def send_question():
     if quiz.is_active:
         await quiz.send_question(quiz_master)
+
+
+@tasks.loop(time=reminder_time)
+async def send_reminder():
+    if quiz.is_active:
+        await quiz.send_reminder()
 
 
 def init():
