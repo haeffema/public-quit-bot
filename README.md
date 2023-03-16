@@ -1,5 +1,6 @@
 # The public version of the quiz bot
 - this repo will be updated when there are new things to share
+- this readme is not up to date and will soon be up to date
 
 ## How to run
 
