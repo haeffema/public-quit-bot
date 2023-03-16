@@ -17,8 +17,8 @@ class Quiz:
         self.players = []
         self.questions = []
         self.log_list = []
-        self.start_message = None
-        self.end_message = None
+        self.start_message = ""
+        self.end_message = ""
         self.table_message = None
         self.active_question = None
         self.is_active = False
@@ -27,8 +27,10 @@ class Quiz:
 
     def generate_quiz(self):
         with open(self.folder + '/quiz.txt', encoding="utf-8") as setup:
-            self.start_message = setup.readline()
-            self.end_message = setup.readline()
+            for line in setup.readline().split(';'):
+                self.start_message += line + "\n"
+            for line in setup.readline().split(';'):
+                self.end_message += line + "\n"
             for question in setup.readlines():
                 self.generate_question(question)
 
@@ -38,7 +40,7 @@ class Quiz:
 
     async def start(self):
         if not self.is_active:
-            await self.send_text(self.start_message)
+            await self.quiz_channel.send(self.start_message)
             self.is_active = True
 
     async def start_at(self, number):
@@ -46,19 +48,21 @@ class Quiz:
             self.count = number - 1
             self.is_active = True
 
-    async def strike(self, user: discord.Member):
+    async def strike(self, user: discord.Member, reason: str):
         for player in self.players:
             if player.user == user:
-                if player.strikes == 0:
-                    await user.send("Das ist dein erster Strike, hier passiert noch nichts.")
-                    player.strikes = 1
+                if player.strikes == 2:
+                    await user.send(f"{reason}: damit bist du aus dem Quiz.")
+                    self.players.remove(player)
                 if player.strikes == 1:
-                    await user.send("Das ist dein zweiter Strike, du verlierst damit alle Punkte.")
+                    await user.send(f"{reason}: damit verlierst du alle Punkte.")
                     player.strikes = 2
                     player.points = 0
-                if player.strikes == 2:
-                    await user.send("Das ist dein dritter Strike, damit fliegst du aus dem Quiz.")
-                    self.players.remove(player)
+                if player.strikes == 0:
+                    await user.send(f"{reason}: hier passiert noch nichts.")
+                    player.strikes = 1
+                await self.update_table()
+                return
 
     async def join(self, user: discord.User):
         for player in self.players:
@@ -81,7 +85,7 @@ class Quiz:
                 await self.update_table()
                 return
 
-    async def set_points(self, user: discord.User, points: float):
+    async def set_points(self, user: discord.User, points: int):
         for player in self.players:
             if player.user == user:
                 player.points = points
@@ -96,63 +100,53 @@ class Quiz:
         for player in self.players:
             if player.user == user:
                 if player.correct_today:
-                    await user.send("Hints:")
-                    for hint in self.active_question.hints:
-                        await user.send(hint)
-                    return
+                    await self.send_hints(user)
                 player.guesses += self.active_question.max_guesses - player.guesses % self.active_question.max_guesses
                 for count in range(3):
                     if player.guesses == self.active_question.max_guesses * (count + 1):
+                        self.log_list.append(Log(player, "used /hint", count))
                         await user.send(self.active_question.hints[count])
                         await self.update_table()
                         return
 
-    async def ff(self, user: discord.User):
-        for player in self.players:
-            if player.user == user:
-                if player.correct_today:
-                    return
-                player.correct_today = True
-                player.guesses = 999999
-                player.points += 0.1
-                await user.send(
-                    f"Die heutige Lösung war: {self.active_question.answer}. Mit etwas nachdenken hättest du es bestimmt geschafft :(")
-                await self.update_table()
-                await self.all_correct_today()
-                return
-
-    async def send_text(self, message: str):
-        for text in message.split("|"):
-            await self.quiz_channel.send(text)
-
-    async def send_image(self):
-        file = Path(self.folder + '/send' + str(self.count) + '.png')
-        if file.exists():
-            await self.quiz_channel.send(file=discord.File(self.folder + "/send" + str(self.count) + ".png"))
-
     async def send_question(self, quiz_master: discord.User):
         if self.active_question is not None:
             await self.reveal_answer()
-        if self.count < len(self.questions):
-            self.active_question = self.questions[self.count]
-            self.count += 1
-            await self.send_image()
-            await self.send_text(self.active_question.question)
-            await self.send_text(str(self.count) + "/" + str(len(self.questions)) + ": " + str(
-                self.active_question.max_guesses) + " guesses")
-            await quiz_master.send("Hints:")
-            for hint in self.active_question.hints:
-                await quiz_master.send(hint)
-            await quiz_master.send("Lösung: " + self.active_question.answer)
-            await self.update_table()
+        self.active_question = self.questions[self.count]
+        self.count += 1
+        await self.send_question_embed(self.quiz_channel)
+        for player in self.players:
+            await self.send_question_embed(player.user)
+        await self.send_hints(quiz_master)
+        await self.update_table()
+
+    async def send_question_embed(self, receiver):
+        filename = 'send' + str(self.count) + '.png'
+        file_location = self.folder + "/" + filename
+        description = self.active_question.question + f"\n{self.count}/{len(self.questions)}: {self.active_question.max_guesses} guesses"
+        file = Path(file_location)
+        embed = discord.Embed(title=self.active_question.category, description=description)
+        if file.exists():
+            dc_file = discord.File(file_location)
+            embed.set_image(url='attachment://' + filename)
+            await receiver.send(embed=embed, file=dc_file)
+        else:
+            await receiver.send(embed=embed)
+
+    async def send_hints(self, user):
+        message = "Hints:\n"
+        for hint in self.active_question.hints:
+            message += f"{hint}\n"
+        message += f"Lösung: {self.active_question.answer}"
+        await user.send(message)
 
     async def send_reminder(self):
         if self.active_question is None:
             return
         for player in self.players:
             if not player.correct_today:
-                await player.user.send(
-                    "Hey, du solltest heute noch antworten.\nNutze /hint für Hinweise.\nNutze /ff wenn du keine Ahnung hast um wenigstens ein paar Punkte zubekommen.")
+                await player.user.send("Hey, du solltest heute noch antworten.\nNutze /hint um schneller an Hints zu "
+                                       "kommen.")
 
     async def reveal_answer(self):
         self.reset_guesses()
@@ -163,23 +157,41 @@ class Quiz:
             await self.end_quiz()
 
     async def log_answers(self):
+        filename = 'send' + str(self.count) + '.png'
+        file_location = self.folder + "/" + filename
+        file = Path(file_location)
         self.log_list.sort(key=lambda x: x.hint_number)
-        hint_numbers = [1, 2, 3]
-        log_text = ""
-        log_text += f"Frage: {self.active_question.question}\n"
+        hint_numbers = [0, 1, 2, 3]
+        embed = discord.Embed(title=self.active_question.category, description=self.active_question.question)
+        users_str = ""
+        answers_str = ""
         for log in self.log_list:
-            if hint_numbers:
-                while log.hint_number > hint_numbers[0]:
-                    log_text += f"Hint: {self.active_question.hints[0]}\n"
-                    hint_numbers.remove(log.hint_number)
-                if log.hint_number in hint_numbers:
-                    log_text += f"Hint: {self.active_question.hints[log.hint_number - 1]}\n"
-                    hint_numbers.remove(log.hint_number)
-            log_text += f"{log.player.username}: {log.content}\n"
+            while log.hint_number > hint_numbers[0]:
+                if users_str != "" and answers_str != "":
+                    embed.add_field(name="", value=users_str, inline=True)
+                    embed.add_field(name="", value=answers_str, inline=True)
+                    users_str = ""
+                    answers_str = ""
+                embed.add_field(name="",
+                                value=f"Hint {log.hint_number}: {self.active_question.hints[log.hint_number - 1]}",
+                                inline=False)
+                hint_numbers.remove(hint_numbers[0])
+            users_str += f"{log.player.username}\n"
+            answers_str += f"{log.content}\n"
+        if users_str != "" and answers_str != "":
+            embed.add_field(name="", value=users_str, inline=True)
+            embed.add_field(name="", value=answers_str, inline=True)
+            hint_numbers.remove(hint_numbers[0])
         for hint_num in hint_numbers:
-            log_text += f"Hint: {self.active_question.hints[hint_num - 1]}\n"
-        log_text += f"Lösung: {self.active_question.answer}\n"
-        await self.log_channel.send(log_text)
+            embed.add_field(name="", value=f"Hint {hint_num + 1}: {self.active_question.hints[hint_num - 1]}",
+                            inline=False)
+        embed.add_field(name=self.active_question.answer, value="", inline=False)
+        if file.exists():
+            dc_file = discord.File(file_location)
+            embed.set_image(url='attachment://' + filename)
+            await self.log_channel.send(embed=embed, file=dc_file)
+        else:
+            await self.log_channel.send(embed=embed)
 
     def reset_guesses(self):
         for player in self.players:
@@ -189,8 +201,8 @@ class Quiz:
     async def end_quiz(self):
         for player in self.players:
             if player.rank == 1:
-                await self.send_text("Herzlichen Glückwunsch " + player.username)
-        await self.send_text(self.end_message)
+                self.end_message = f"Herzlichen Glückwunsch {player.username}\n" + self.end_message
+        await self.quiz_channel.send(self.end_message)
         self.is_active = False
 
     async def user_answer(self, user_answer: discord.Message, quiz_master: discord.User):
@@ -202,10 +214,7 @@ class Quiz:
                     player.points += self.calculate_points(player)
                     player.correct_today = True
                     await user_answer.add_reaction('\N{white heavy check mark}')
-                    if player.points == int(player.points):
-                        await user_answer.reply(f"Damit hast du nun {int(player.points)} Punkte.")
-                    else:
-                        await user_answer.reply(f"Damit hast du nun {player.points} Punkte.")
+                    await user_answer.reply(f"Damit hast du nun {player.points} Punkte.")
                     await self.all_correct_today()
                 else:
                     if player.guesses // self.active_question.max_guesses < 3:
@@ -235,6 +244,8 @@ class Quiz:
         await self.reveal_answer()
 
     async def update_table(self):
+        if self.table_message is not None:
+            await self.table_message.delete()
         self.players.sort(key=lambda player_to_sort: player_to_sort.points, reverse=True)
         rank = 1
         for index, player in enumerate(self.players):
@@ -243,27 +254,21 @@ class Quiz:
                 if self.players[count].points == player.points:
                     player.rank = self.players[count].rank
             rank += 1
-        table_text = ""
+        embed = discord.Embed(title=f"{self.count}/{len(self.questions)}")
+        places_str = ""
+        player_str = ""
+        points_str = ""
         for player in self.players:
+            places_str += f"{player.rank}.\n"
+            player_str += f"{player.username}\n"
             if player.correct_today or self.active_question is None:
-                if player.points == int(player.points):
-                    table_text += f"{player.rank}. {player.username}: {int(player.points)}\n"
-                else:
-                    table_text += f"{player.rank}. {player.username}: {player.points}\n"
+                points_str += f"{player.points}\n"
             else:
-                if player.points == int(player.points):
-                    table_text += f"{player.rank}. {player.username}: {int(player.points)} | max. + {self.calculate_points(player)}\n"
-                else:
-                    table_text += f"{player.rank}. {player.username}: {player.points} | max. + {self.calculate_points(player)}\n"
-        if self.table_message is not None:
-            await self.table_message.delete()
-        if table_text != "" and self.table_message is not None:
-            if table_text != self.table_message.content:
-                self.table_message = await self.table_channel.send(table_text)
-                return
-        if self.table_message is None and table_text != "":
-            self.table_message = await self.table_channel.send(table_text)
-
+                points_str += f"{player.points} | max. + {self.calculate_points(player)}\n"
+        embed.add_field(name="Platz", value=places_str, inline=True)
+        embed.add_field(name="Spieler", value=player_str, inline=True)
+        embed.add_field(name="Punkte", value=points_str, inline=True)
+        self.table_message = await self.table_channel.send(embed=embed)
 
     async def points_minus_one(self, user):
         for player in self.players:
