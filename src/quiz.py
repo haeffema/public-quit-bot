@@ -101,6 +101,7 @@ class Quiz:
             if player.user == user:
                 if player.correct_today:
                     await self.send_hints(user)
+                    return
                 player.guesses += self.active_question.max_guesses - player.guesses % self.active_question.max_guesses
                 for count in range(3):
                     if player.guesses == self.active_question.max_guesses * (count + 1):
@@ -161,12 +162,12 @@ class Quiz:
         file_location = self.folder + "/" + filename
         file = Path(file_location)
         self.log_list.sort(key=lambda x: x.hint_number)
-        hint_numbers = [0, 1, 2, 3]
+        hint_numbers = [1, 2, 3, "fill"]
         embed = discord.Embed(title=self.active_question.category, description=self.active_question.question)
         users_str = ""
         answers_str = ""
         for log in self.log_list:
-            while log.hint_number > hint_numbers[0]:
+            if log.hint_number == hint_numbers[0]:
                 if users_str != "" and answers_str != "":
                     embed.add_field(name="", value=users_str, inline=True)
                     embed.add_field(name="", value=answers_str, inline=True)
@@ -181,9 +182,10 @@ class Quiz:
         if users_str != "" and answers_str != "":
             embed.add_field(name="", value=users_str, inline=True)
             embed.add_field(name="", value=answers_str, inline=True)
-            hint_numbers.remove(hint_numbers[0])
+        if "fill" in hint_numbers:
+            hint_numbers.remove("fill")
         for hint_num in hint_numbers:
-            embed.add_field(name="", value=f"Hint {hint_num + 1}: {self.active_question.hints[hint_num - 1]}",
+            embed.add_field(name="", value=f"Hint {hint_num}: {self.active_question.hints[hint_num - 1]}",
                             inline=False)
         embed.add_field(name=self.active_question.answer, value="", inline=False)
         if file.exists():
@@ -276,3 +278,4 @@ class Quiz:
                 player.points -= 1
                 await self.update_table()
                 return
+            
