@@ -19,3 +19,5 @@ Category;Question;Answer;Hint1;Hint2;Hint3;Amount of guesses (has to be a number
  .
  .
 ```
+
+You can add one picture for a question, the picture must namend sendX.png where X is the number of the question.
