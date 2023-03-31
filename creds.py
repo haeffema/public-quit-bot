@@ -1,4 +1,4 @@
-bot_token = ""
+bot_token = ''
 folder = 'resources\\bunt_gemischt'
 quiz_master_id = 0
 quiz_channel_id = 0
