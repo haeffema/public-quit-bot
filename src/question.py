@@ -5,4 +5,3 @@ class Question:
         self.answer = question_information[2]
         self.hints = [question_information[3], question_information[4], question_information[5]]
         self.max_guesses = int(question_information[6])
-        

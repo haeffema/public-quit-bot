@@ -278,4 +278,3 @@ class Quiz:
                 player.points -= 1
                 await self.update_table()
                 return
-            
