@@ -1,11 +1,8 @@
 # Quiz Bot
 
 ## How to use the bot
-- Fork this repository
-- Create a Folder in the ressources folder
-- Edit the creds.py file with the correct information
-- start the main.py and only close it when the bot is finished
-- the quiz master has now access to all commands to start the quit, change time etc...
+- download the newest version of this repository
+- edit the creds.py file
 
 ## The Structure of the Folder
 There has to be a quiz.txt file with the following format.
